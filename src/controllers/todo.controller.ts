@@ -18,8 +18,18 @@ export const createTodo = async (req: AuthRequest, res: Response): Promise<void>
         const userId = req.user?.id;
         const { task } = req.body;
         
-        await pool.query('INSERT INTO todos (user_id, task) VALUES (?, ?)', [userId, task]);
-        res.status(201).json({ message: 'Todo berhasil ditambahkan' });
+        // Baris ini sudah diperbaiki untuk menangkap hasil query MySQL
+        const [result]: any = await pool.query('INSERT INTO todos (user_id, task) VALUES (?, ?)', [userId, task]);
+        
+        res.status(201).json({
+            success: true,
+            message: "Tugas berhasil ditambahkan!",
+            data: {
+                id: result.insertId, 
+                task: task,
+                is_completed: false
+            }
+        });
     } catch (error) {
         res.status(500).json({ message: 'Terjadi kesalahan saat menyimpan Todo' });
     }
