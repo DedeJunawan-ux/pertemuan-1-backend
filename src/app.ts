@@ -1,22 +1,25 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { authenticateJWT } from './middlewares/auth.middleware';
-import { validateRegister, validateLogin, validateTodo } from './middlewares/validator.middleware';
-import * as AuthController from './controllers/auth.controller';
-import * as TodoController from './controllers/todo.controller';
+import routes from './routes/index';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.post('/api/auth/register', validateRegister, AuthController.register);
-app.post('/api/auth/login', validateLogin, AuthController.login);
-
-app.get('/api/todos', authenticateJWT, TodoController.getTodos);
-app.post('/api/todos', authenticateJWT, validateTodo, TodoController.createTodo);
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server Backend berjalan dengan baik di http://localhost:${PORT}`);
+app.get('/', (req, res) => {
+    res.status(200).json({ success: true, message: 'Backend Todo Praktikum Berjalan Mulus!' });
 });
+
+app.use('/api', routes);
+
+app.use((req: Request, res: Response) => {
+    res.status(404).json({ success: false, message: `Route ${req.method} ${req.url} tidak ditemukan!` });
+});
+
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('Terjadi error:', err.message);
+    res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+});
+
+export default app; 
