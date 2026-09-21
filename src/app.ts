@@ -1,25 +1,39 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import routes from './routes/index';
+import { randomUUID } from 'crypto';
+import { sendSuccess, sendError } from './utils/response';
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ exposedHeaders: ['X-Request-Id'] }));
 app.use(express.json());
 
+app.use((req, res, next) => {
+    const requestId = randomUUID();
+    res.locals.requestId = requestId;
+    res.setHeader('X-Request-Id', requestId);
+    next();
+});
+
+app.use((req, res, next) => {
+    console.log(`[${res.locals.requestId}] ${req.method} ${req.originalUrl}`);
+    next();
+});
+
 app.get('/', (req, res) => {
-    res.status(200).json({ success: true, message: 'Backend Todo Praktikum Berjalan Mulus!' });
+    sendSuccess(res, 'Backend Todo Praktikum Berjalan Mulus!');
 });
 
 app.use('/api', routes);
 
 app.use((req: Request, res: Response) => {
-    res.status(404).json({ success: false, message: `Route ${req.method} ${req.url} tidak ditemukan!` });
+    sendError(res, `Route ${req.method} ${req.url} tidak ditemukan!`, 404);
 });
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     console.error('Terjadi error:', err.message);
-    res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+    sendError(res, 'Terjadi kesalahan pada server.', 500);
 });
 
-export default app; 
+export default app;

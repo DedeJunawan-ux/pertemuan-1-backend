@@ -2,47 +2,55 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../config/database';
+import type { RegisterRequest, LoginRequest, JwtUserPayload } from '../types/auth';
+import { sendSuccess, sendError } from '../utils/response';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
+    const payload: RegisterRequest = req.body;
     try {
-        const { nama, email, password } = req.body;
+        const hashedPassword = await bcrypt.hash(payload.password, 10);
         
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // Pastikan tabel di MySQL bernama 'Auth' dan kolomnya 'nama'
+        await pool.query(
+            'INSERT INTO Auth (nama, email, password) VALUES (?, ?, ?)', 
+            [payload.username, payload.email, hashedPassword]
+        );
         
-        const [rows]: any = await pool.query('SELECT * FROM Auth WHERE email = ?', [email]);
-        if (rows.length > 0) {
-            res.status(400).json({ message: 'Email sudah terdaftar' });
+        sendSuccess(res, 'Registrasi berhasil!', null, 201);
+    } catch (error: any) {
+        console.error("--- ERROR DATABASE REGISTER ---", error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            sendError(res, 'Username atau Email sudah terdaftar!', 409);
             return;
         }
-
-        await pool.query('INSERT INTO Auth (nama, email, password) VALUES (?, ?, ?)', [nama, email, hashedPassword]);
-        res.status(201).json({ message: 'Registrasi berhasil' });
-    } catch (error) {
-        res.status(500).json({ message: 'Terjadi kesalahan pada server' });
+        sendError(res, 'Error server.', 500);
     }
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
+    const payload: LoginRequest = req.body;
     try {
-        const { email, password } = req.body;
-        
-        const [rows]: any = await pool.query('SELECT * FROM Auth WHERE email = ?', [email]);
-        if (rows.length === 0) {
-            res.status(401).json({ message: 'Email atau password salah' });
-            return;
-        }
-
+        const [rows]: any = await pool.query(
+            'SELECT * FROM Auth WHERE nama = ?', 
+            [payload.username]
+        );
         const user = rows[0];
-        
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            res.status(401).json({ message: 'Email atau password salah' });
+
+        if (!user || !(await bcrypt.compare(payload.password, user.password))) {
+            sendError(res, 'Username atau password salah!', 401);
             return;
         }
 
-        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET as string, { expiresIn: '2h' });
-        res.json({ message: 'Login berhasil', token });
+        const tokenPayload: JwtUserPayload = { 
+            id: user.id, 
+            username: user.nama, 
+            email: user.email 
+        };
+        const token = jwt.sign(tokenPayload, process.env.JWT_SECRET as string, { expiresIn: '2h' });
+
+        sendSuccess(res, 'Login berhasil!', { token });
     } catch (error) {
-        res.status(500).json({ message: 'Terjadi kesalahan pada server' });
+        console.error("--- ERROR DATABASE LOGIN ---", error);
+        sendError(res, 'Error server.', 500);
     }
 };
