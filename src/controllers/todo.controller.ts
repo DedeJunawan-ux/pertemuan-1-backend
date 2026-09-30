@@ -76,17 +76,40 @@ export const getTodoById = async (req: Request, res: Response): Promise<void> =>
 
 export const updateTodo = async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const payload: UpdateTodoRequest = req.body;
+    const { task, is_completed } = req.body;
     const userId = req.user.id;
+
     try {
+        const fields: string[] = [];
+        const values: any[] = [];
+
+        if (task !== undefined) {
+            fields.push('task = ?');
+            values.push(task);
+        }
+
+        if (is_completed !== undefined) {
+            fields.push('is_completed = ?');
+            values.push(is_completed);
+        }
+
+        if (fields.length === 0) {
+            sendError(res, 'Tidak ada data yang dikirim untuk diperbarui!', 400);
+            return;
+        }
+
+        values.push(id, userId);
+
         const [result]: any = await pool.query(
-            'UPDATE todos SET task = ?, is_completed = ? WHERE id = ? AND user_id = ?',
-            [payload.task, payload.is_completed, id, userId]
+            `UPDATE todos SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+            values
         );
+
         if (result.affectedRows === 0) {
             sendError(res, 'Tugas tidak ditemukan!', 404);
             return;
         }
+
         sendSuccess(res, 'Tugas berhasil diperbarui!');
     } catch {
         sendError(res, 'Gagal memperbarui tugas.', 500);
